@@ -1,5 +1,5 @@
-const POLY32: u32 = 0xEDB88320;
-const POLY64: u64 = 0xC96C5795D7870F42;
+const POLY32: u32 = 0xEDB8_8320;
+const POLY64: u64 = 0xC96C_5795_D787_0F42;
 
 lazy_static! {
     static ref CRC_TABLES: ([u32; 256], [u64; 256]) = {

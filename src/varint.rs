@@ -25,12 +25,12 @@ impl PartialVarInt{
         PartialVarInt(0, 0)
     }
 
-    #[inline(always)]
+    #[inline]
     pub(crate) fn continue_parsing(self, b: u8) -> VarintResult {
         let PartialVarInt(mut res, count) = self;
         assert!(count <= 9);
         
-        res += ((b & 0x7F) as u64) << (count * 7);
+        res += u64::from(b & 0x7F) << (count * 7);
         
         if b & 0x80 == 0 {
             return VarintResult::Full(res);
@@ -44,7 +44,7 @@ impl PartialVarInt{
     }
 }
 
-#[inline(always)]
+#[inline]
 pub(crate) fn from_read<R: Read>(reader: &mut R) -> io::Result<VarintResult> {
     let mut partial = PartialVarInt::empty();
     let mut buf = [0u8; 1];

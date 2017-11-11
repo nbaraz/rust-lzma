@@ -1,3 +1,6 @@
+// TODO: Remove
+#![allow(unused)]
+
 extern crate byteorder;
 #[macro_use] extern crate lazy_static;
 
