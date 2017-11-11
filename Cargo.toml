@@ -1,0 +1,8 @@
+[package]
+name = "lzma"
+version = "0.1.0"
+authors = ["Noam Baraz <n0987b@gmail.com>"]
+
+[dependencies]
+byteorder = "1.1"
+lazy_static = "0.2.9"
