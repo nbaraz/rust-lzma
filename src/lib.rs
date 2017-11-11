@@ -8,7 +8,7 @@ use std::mem;
 use std::io::{self, Read};
 use std::slice;
 
-use byteorder::{BE, LE, ByteOrder};
+use byteorder::ByteOrder;
 
 mod varint;
 mod crc;
@@ -92,13 +92,12 @@ impl XZStreamHeader {
         } else {
             Ok(())
         }
-            // return Err(XZError::UnsupportedFlag);
     }
 }
 
 #[derive(Debug, Clone, Copy, )]
 #[repr(u8)]
-enum StreamFlags {
+enum CheckType {
     None = 0x00,
     CRC32 = 0x01,
     CRC64 = 0x04,
@@ -135,8 +134,8 @@ unsafe impl TransmuteSafe for XZBlockHeaderSized {}
 
 struct XZBlockHeader {
     sized: XZBlockHeaderSized,
-    csized: u64,
-    usized: u64,
+    csized: Option<u64>,
+    usized: Option<u64>,
     filter_flags: Vec<FilterFlags>,
     crc: u32,
 }
@@ -179,8 +178,17 @@ fn parse_block_header<R: Read>(reader: &mut R) -> io::Result<XZBlockHeader> {
     reader.read_exact(&mut buf[..])?;
     let rest: &mut &[u8] = &mut &buf[0..bhs.header_size.get()];
 
-    let cs = varint::from_read(rest)?.unwrap();
-    let us = varint::from_read(rest)?.unwrap();
+    let cs = if bhs.flags.has_compressed_size() {
+        Some(varint::from_read(rest)?.unwrap())
+    } else {
+        None
+    };
+
+    let us = if bhs.flags.has_uncompressed_size() {
+        Some(varint::from_read(rest)?.unwrap())
+    } else {
+        None
+    };
 
     let mut fflags = Vec::new();
     for _ in 0..bhs.flags.num_filters() {
