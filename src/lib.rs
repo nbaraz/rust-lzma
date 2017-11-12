@@ -17,6 +17,26 @@ mod endianness;
 use endianness::*;
 
 
+enum XZError {
+    InvalidHeaderMagic,
+    InvalidFlags,
+    InvalidHeaderSize,
+    UnsupportedFlag,
+    BadCRC,
+    BadPadding,
+    IO(io::Error),
+    Varint,
+}
+
+impl From<io::Error> for XZError {
+    fn from(err: io::Error) -> XZError {
+        XZError::IO(err)
+    }
+}
+
+
+type XZResult<T> = Result<T, XZError>;
+
 unsafe trait TransmuteSafe: Sized + Copy {
     fn from_bytes(bytes: &mut [u8]) -> Self {
         let mut temp: Self = unsafe { mem::uninitialized() };
@@ -51,25 +71,6 @@ struct XZStreamHeader {
     flags: u16be,
     crc: u32le,
 }
-
-enum XZError {
-    InvalidHeaderMagic,
-    InvalidFlags,
-    InvalidHeaderSize,
-    UnsupportedFlag,
-    BadCRC,
-    BadPadding,
-    IO(io::Error),
-    Varint,
-}
-
-impl From<io::Error> for XZError {
-    fn from(err: io::Error) -> XZError {
-        XZError::IO(err)
-    }
-}
-
-type XZResult<T> = Result<T, XZError>;
 
 
 impl XZStreamHeader {
