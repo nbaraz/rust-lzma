@@ -47,7 +47,7 @@ impl PartialVarInt {
 }
 
 #[inline]
-pub(crate) fn from_read<R: Read>(reader: &mut R) -> XZResult<u64> {
+pub(crate) fn from_reader<R: Read>(reader: &mut R) -> XZResult<u64> {
     let mut partial = PartialVarInt::empty();
     let mut buf = [0u8; 1];
 

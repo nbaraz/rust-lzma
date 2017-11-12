@@ -162,21 +162,21 @@ fn parse_block_header<R: Read>(reader: &mut R) -> XZResult<XZBlockHeader> {
     let rest: &mut &[u8] = &mut &buf[0..bhs.header_size.get()];
 
     let cs = if bhs.flags.has_compressed_size() {
-        Some(varint::from_read(rest)?)
+        Some(varint::from_reader(rest)?)
     } else {
         None
     };
 
     let us = if bhs.flags.has_uncompressed_size() {
-        Some(varint::from_read(rest)?)
+        Some(varint::from_reader(rest)?)
     } else {
         None
     };
 
     let mut fflags = Vec::new();
     for _ in 0..bhs.flags.num_filters() {
-        let id = varint::from_read(rest)?;
-        let propsize = varint::from_read(rest)?;
+        let id = varint::from_reader(rest)?;
+        let propsize = varint::from_reader(rest)?;
         let ff = FilterFlags {
             id: id,
             propsize: propsize,
