@@ -25,7 +25,6 @@ unsafe trait TransmuteSafe: Sized + Copy {
         }
 
         unsafe {
-            // let ptr = &temp;
             let ptr: *mut Self = mem::transmute(bytes.as_ptr());
             let out_ptr = &mut temp as *mut Self;
             *out_ptr = *ptr;
@@ -83,7 +82,7 @@ impl XZStreamHeader {
     }
 }
 
-#[derive(Debug, Clone, Copy, )]
+#[derive(Debug, Clone, Copy)]
 #[repr(u8)]
 enum CheckType {
     None = 0x00,
