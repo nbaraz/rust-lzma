@@ -1,7 +1,7 @@
 
 macro_rules! impl_endian {
     ($orig:ident, $new:ident, $from:ident, $to:ident) => {
-        #[derive(Clone, Copy)]
+        #[derive(Debug, Clone, Copy)]
         #[repr(C)]
         pub(crate) struct $new($orig);
 

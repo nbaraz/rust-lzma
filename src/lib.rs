@@ -17,6 +17,7 @@ mod endianness;
 use endianness::*;
 
 
+#[derive(Debug)]
 enum XZError {
     InvalidHeaderMagic,
     InvalidFlags,
@@ -66,6 +67,8 @@ unsafe trait TransmuteSafe: Sized + Copy {
 
 unsafe impl<T> TransmuteSafe for T where T: Sized + Copy {}
 
+
+#[derive(Debug, Clone, Copy)]
 #[repr(C)]
 struct XZStreamHeader {
     header_magic: [u8; 6],
@@ -121,6 +124,7 @@ struct XZBlockHeaderSized {
     flags: XZBlockFlags,
 }
 
+#[derive(Debug)]
 struct XZBlockHeader {
     sized: XZBlockHeaderSized,
     csized: Option<u64>,
@@ -147,6 +151,7 @@ impl HeaderSize {
     }
 }
 
+#[derive(Debug)]
 struct FilterFlags {
     id: u64,
     propsize: u64,
