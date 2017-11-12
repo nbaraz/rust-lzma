@@ -58,7 +58,18 @@ enum XZError {
     InvalidFlags,
     UnsupportedFlag,
     BadCRC,
+    IO(io::Error),
+    Varint,
 }
+
+impl From<io::Error> for XZError {
+    fn from(err: io::Error) -> XZError {
+        XZError::IO(err)
+    }
+}
+
+type XZResult<T> = Result<T, XZError>;
+
 
 impl XZStreamHeader {
     fn verify(&self) -> Result<(), XZError> {
@@ -136,10 +147,10 @@ impl HeaderSize {
 struct FilterFlags {
     id: u64,
     propsize: u64,
-    // props
+    props: Vec<u8>,
 }
 
-fn parse_block_header<R: Read>(reader: &mut R) -> io::Result<XZBlockHeader> {
+fn parse_block_header<R: Read>(reader: &mut R) -> XZResult<XZBlockHeader> {
     let bhs: XZBlockHeaderSized = TransmuteSafe::from_reader(reader).unwrap();
 
     if !bhs.header_size.verify() {
@@ -151,35 +162,34 @@ fn parse_block_header<R: Read>(reader: &mut R) -> io::Result<XZBlockHeader> {
     let rest: &mut &[u8] = &mut &buf[0..bhs.header_size.get()];
 
     let cs = if bhs.flags.has_compressed_size() {
-        Some(varint::from_read(rest)?.unwrap())
+        Some(varint::from_read(rest)?)
     } else {
         None
     };
 
     let us = if bhs.flags.has_uncompressed_size() {
-        Some(varint::from_read(rest)?.unwrap())
+        Some(varint::from_read(rest)?)
     } else {
         None
     };
 
     let mut fflags = Vec::new();
     for _ in 0..bhs.flags.num_filters() {
+        let id = varint::from_read(rest)?;
+        let propsize = varint::from_read(rest)?;
         let ff = FilterFlags {
-            id: varint::from_read(rest)?.unwrap(),
-            propsize: varint::from_read(rest)?.unwrap(),
+            id: id,
+            propsize: propsize,
+            props: rest.take(propsize).bytes().collect::<Result<_, _>>()?,
         };
 
-        // TODO: use data
-        rest.take(ff.propsize).bytes().for_each(|_| ());
         fflags.push(ff);
     }
     let rest_len = rest.len() as u64;
-    
+
     if rest_len < 4 {
         panic!("wrong block header size");
-    }
-    
-    else if rest_len != 4 {
+    } else if rest_len != 4 {
         for b in rest.take(rest_len - 4).bytes() {
             if b? != 0x00 {
                 panic!("bad padding");
