@@ -2,7 +2,8 @@
 #![allow(unused)]
 
 extern crate byteorder;
-#[macro_use] extern crate lazy_static;
+#[macro_use]
+extern crate lazy_static;
 
 use std::mem;
 use std::io::{self, Read};
@@ -17,8 +18,7 @@ use endianness::*;
 
 
 unsafe trait TransmuteSafe: Sized + Copy {
-
-    fn from_bytes(bytes: &mut[u8]) -> Self {
+    fn from_bytes(bytes: &mut [u8]) -> Self {
         let mut temp: Self = unsafe { mem::uninitialized() };
         if bytes.len() < mem::size_of::<Self>() {
             panic!("untransmutable");
@@ -33,9 +33,13 @@ unsafe trait TransmuteSafe: Sized + Copy {
         temp
     }
 
-    fn from_reader<R: Read>(reader: &mut R) -> io::Result<Self> where Self: Sized{
+    fn from_reader<R: Read>(reader: &mut R) -> io::Result<Self>
+        where Self: Sized
+    {
         let mut tmp: Self = unsafe { mem::uninitialized() };
-        let arr = unsafe { slice::from_raw_parts_mut(&mut tmp as *mut Self as *mut u8, mem::size_of::<Self>()) };
+        let arr = unsafe {
+            slice::from_raw_parts_mut(&mut tmp as *mut Self as *mut u8, mem::size_of::<Self>())
+        };
         reader.read_exact(arr)?;
         Ok(TransmuteSafe::from_bytes(arr))
     }
@@ -85,7 +89,7 @@ impl XZBlockFlags {
     fn num_filters(&self) -> u8 {
         self.0 & 0x03
     }
-    
+
     fn has_compressed_size(&self) -> bool {
         ((self.0 & 0x40) >> 6) != 0
     }
@@ -93,7 +97,6 @@ impl XZBlockFlags {
     fn has_uncompressed_size(&self) -> bool {
         ((self.0 & 0x80) >> 7) != 0
     }
-
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -118,11 +121,7 @@ struct HeaderSize(u8);
 
 impl HeaderSize {
     fn new(v: u8) -> Option<HeaderSize> {
-        if v == 0 {
-            None
-        } else {
-            Some(HeaderSize(v))
-        }
+        if v == 0 { None } else { Some(HeaderSize(v)) }
     }
 
     fn verify(self) -> bool {
