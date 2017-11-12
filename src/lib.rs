@@ -82,14 +82,16 @@ struct XZStreamHeader {
 
 
 impl XZStreamHeader {
-    fn verify(&self) -> Result<(), XZError> {
-        if self.header_magic != [0xFD, b'7', b'z', b'X', b'Z', 0x00] {
+    fn from_reader<R: Read>(reader: &mut R) -> XZResult<XZStreamHeader> {
+        let hdr: XZStreamHeader = TransmuteSafe::from_reader(reader)?;
+
+        if hdr.header_magic != [0xFD, b'7', b'z', b'X', b'Z', 0x00] {
             Err(XZError::InvalidHeaderMagic)
-        } else if (self.flags.get() >> 8) != 0 {
+        } else if (hdr.flags.get() >> 8) != 0 {
             // TODO: More verification
             Err(XZError::InvalidFlags)
         } else {
-            Ok(())
+            Ok(hdr)
         }
     }
 }
@@ -108,6 +110,10 @@ enum CheckType {
 struct XZBlockFlags(u8);
 
 impl XZBlockFlags {
+    fn is_ok(&self) -> bool {
+        self.0 & 0x3C == 0
+    }
+
     fn num_filters(&self) -> u8 {
         self.0 & 0x03
     }
@@ -121,16 +127,11 @@ impl XZBlockFlags {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-#[repr(packed)]
-struct XZBlockHeaderSized {
-    header_size: HeaderSize,
-    flags: XZBlockFlags,
-}
 
 #[derive(Debug)]
 struct XZBlockHeader {
-    sized: XZBlockHeaderSized,
+    size: u16,
+    flags: XZBlockFlags,
     csized: Option<u64>,
     usized: Option<u64>,
     filter_flags: Vec<FilterFlags>,
@@ -141,19 +142,22 @@ struct XZBlockHeader {
 struct HeaderSize(u8);
 
 impl HeaderSize {
-    fn new(v: u8) -> Option<HeaderSize> {
-        if v == 0 { None } else { Some(HeaderSize(v)) }
-    }
-
-    fn verify(self) -> bool {
-        self.0 != 0
-    }
-
-    fn get(self) -> usize {
-        assert!(self.0 != 0);
-        (self.0 as usize + 1) * 4
+    fn disambiguate(self) -> HeaderKind {
+        if self.0 == 0 {
+            HeaderKind::Index
+        } else {
+            HeaderKind::Block((u16::from(self.0) + 1) * 4)
+        }
     }
 }
+
+
+#[derive(Debug)]
+enum HeaderKind {
+    Block(u16),
+    Index,
+}
+
 
 #[derive(Debug)]
 struct FilterFlags {
@@ -162,31 +166,31 @@ struct FilterFlags {
     props: Vec<u8>,
 }
 
-fn parse_block_header<R: Read>(reader: &mut R) -> XZResult<XZBlockHeader> {
-    let bhs: XZBlockHeaderSized = TransmuteSafe::from_reader(reader).unwrap();
+fn parse_block_header<R: Read>(reader: &mut R, header_size: u16) -> XZResult<XZBlockHeader> {
+    let flags: XZBlockFlags = transmute_from_reader(reader)?;
 
-    if !bhs.header_size.verify() {
-        return Err(XZError::InvalidHeaderSize);
+    if !flags.is_ok() {
+        return Err(XZError::InvalidFlags);
     }
 
     let mut buf = [0u8; 1024];
     reader.read_exact(&mut buf[..])?;
-    let rest: &mut &[u8] = &mut &buf[0..bhs.header_size.get()];
+    let rest: &mut &[u8] = &mut &buf[0..header_size as usize];
 
-    let cs = if bhs.flags.has_compressed_size() {
+    let cs = if flags.has_compressed_size() {
         Some(varint::from_reader(rest)?)
     } else {
         None
     };
 
-    let us = if bhs.flags.has_uncompressed_size() {
+    let us = if flags.has_uncompressed_size() {
         Some(varint::from_reader(rest)?)
     } else {
         None
     };
 
     let mut fflags = Vec::new();
-    for _ in 0..bhs.flags.num_filters() {
+    for _ in 0..flags.num_filters() {
         let id = varint::from_reader(rest)?;
         let propsize = varint::from_reader(rest)?;
         let ff = FilterFlags {
@@ -212,12 +216,28 @@ fn parse_block_header<R: Read>(reader: &mut R) -> XZResult<XZBlockHeader> {
     let crc = byteorder::LittleEndian::read_u32(rest);
 
     Ok(XZBlockHeader {
-        sized: bhs,
+        size: header_size,
+        flags: flags,
         csized: cs,
         usized: us,
         filter_flags: fflags,
         crc: crc,
     })
+}
+
+fn parse_xz_block<R: Read>(reader: &mut R, header_size: u16) -> XZResult<()> {
+    let block_header = parse_block_header(reader, header_size)?;
+    // TODO: parse block
+    Ok(())
+}
+
+fn parse_xz_stream<R: Read>(reader: &mut R) -> XZResult<()> {
+    let stream_header = XZStreamHeader::from_reader(reader)?;
+    while let HeaderKind::Block(header_size) = transmute_from_reader::<HeaderSize, _>(reader)?.disambiguate() {
+        parse_xz_block(reader, header_size)?;
+    }
+    // TODO: parse index
+    Ok(())
 }
 
 #[cfg(test)]
