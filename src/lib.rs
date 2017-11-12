@@ -87,12 +87,24 @@ impl XZStreamHeader {
 
         if hdr.header_magic != [0xFD, b'7', b'z', b'X', b'Z', 0x00] {
             Err(XZError::InvalidHeaderMagic)
-        } else if (hdr.flags.get() >> 8) != 0 {
+        } else if (hdr.flags.get() >> 8) != 0 || (hdr.flags.get() & 0xF0) != 0 {
             // TODO: More verification
             Err(XZError::InvalidFlags)
         } else {
             Ok(hdr)
         }
+    }
+
+    fn check_type(&self) -> Option<CheckType> {
+        use CheckType::*;
+
+        Some(match self.flags.get() & 0x0F {
+            0x00 => None,
+            0x01 => CRC32,
+            0x04 => CRC64,
+            0x0A => SHA256,
+            _ => { return Option::None }
+        })
     }
 }
 
@@ -103,6 +115,19 @@ enum CheckType {
     CRC32 = 0x01,
     CRC64 = 0x04,
     SHA256 = 0x0A,
+}
+
+impl CheckType {
+    fn check_size(self) -> u8 {
+        use CheckType::*;
+
+        match self {
+            None => 0,
+            CRC32 => 4,
+            CRC64 => 8,
+            SHA256 => 32,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, )]
