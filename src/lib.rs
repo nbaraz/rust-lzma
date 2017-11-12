@@ -55,8 +55,10 @@ struct XZStreamHeader {
 enum XZError {
     InvalidHeaderMagic,
     InvalidFlags,
+    InvalidHeaderSize,
     UnsupportedFlag,
     BadCRC,
+    BadPadding,
     IO(io::Error),
     Varint,
 }
@@ -75,6 +77,7 @@ impl XZStreamHeader {
         if self.header_magic != [0xFD, b'7', b'z', b'X', b'Z', 0x00] {
             Err(XZError::InvalidHeaderMagic)
         } else if (self.flags.get() >> 8) != 0 {
+            // TODO: More verification
             Err(XZError::InvalidFlags)
         } else {
             Ok(())
@@ -139,6 +142,7 @@ impl HeaderSize {
     }
 
     fn get(self) -> usize {
+        assert!(self.0 != 0);
         (self.0 as usize + 1) * 4
     }
 }
@@ -153,7 +157,7 @@ fn parse_block_header<R: Read>(reader: &mut R) -> XZResult<XZBlockHeader> {
     let bhs: XZBlockHeaderSized = TransmuteSafe::from_reader(reader).unwrap();
 
     if !bhs.header_size.verify() {
-        panic!("invalid header size");
+        return Err(XZError::InvalidHeaderSize);
     }
 
     let mut buf = [0u8; 1024];
@@ -187,11 +191,11 @@ fn parse_block_header<R: Read>(reader: &mut R) -> XZResult<XZBlockHeader> {
     let rest_len = rest.len() as u64;
 
     if rest_len < 4 {
-        panic!("wrong block header size");
+        return Err(XZError::BadPadding);
     } else if rest_len != 4 {
         for b in rest.take(rest_len - 4).bytes() {
             if b? != 0x00 {
-                panic!("bad padding");
+                return Err(XZError::BadPadding);
             }
         }
     }
