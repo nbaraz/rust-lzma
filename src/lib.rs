@@ -65,6 +65,10 @@ unsafe trait TransmuteSafe: Sized + Copy {
     }
 }
 
+fn transmute_from_reader<T: TransmuteSafe, R: Read>(reader: &mut R) -> io::Result<T> {
+    <T as TransmuteSafe>::from_reader(reader)
+}
+
 unsafe impl<T> TransmuteSafe for T where T: Sized + Copy {}
 
 
