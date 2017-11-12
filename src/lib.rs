@@ -64,6 +64,7 @@ unsafe trait TransmuteSafe: Sized + Copy {
     }
 }
 
+unsafe impl<T> TransmuteSafe for T where T: Sized + Copy {}
 
 #[repr(C)]
 struct XZStreamHeader {
@@ -119,8 +120,6 @@ struct XZBlockHeaderSized {
     header_size: HeaderSize,
     flags: XZBlockFlags,
 }
-
-unsafe impl TransmuteSafe for XZBlockHeaderSized {}
 
 struct XZBlockHeader {
     sized: XZBlockHeaderSized,
