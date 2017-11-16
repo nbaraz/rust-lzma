@@ -15,6 +15,8 @@ mod varint;
 mod crc;
 mod endianness;
 use endianness::*;
+mod counting_reader;
+use counting_reader::CountingReader;
 
 
 #[derive(Debug)]
