@@ -20,7 +20,7 @@ use counting_reader::CountingReader;
 
 
 #[derive(Debug)]
-enum XZError {
+pub enum XZErrorKind {
     InvalidHeaderMagic,
     InvalidFlags,
     InvalidHeaderSize,
@@ -31,9 +31,35 @@ enum XZError {
     Varint,
 }
 
+#[derive(Debug)]
+pub struct XZError {
+    kind: XZErrorKind,
+    location: Option<usize>,
+}
+
+impl XZError {
+    fn add_count<R: Read>(mut self, r: &CountingReader<R>) -> XZError {
+        self.location = Some(r.count());
+        self
+    }
+}
+
 impl From<io::Error> for XZError {
     fn from(err: io::Error) -> XZError {
-        XZError::IO(err)
+        XZError {
+            kind: XZErrorKind::IO(err),
+            location: None,
+        }
+    }
+}
+
+
+impl From<XZErrorKind> for XZError {
+    fn from(kind: XZErrorKind) -> XZError {
+        XZError {
+            kind: kind,
+            location: None,
+        }
     }
 }
 
@@ -71,6 +97,7 @@ fn transmute_from_reader<T: TransmuteSafe, R: Read>(reader: &mut R) -> io::Resul
     <T as TransmuteSafe>::from_reader(reader)
 }
 
+
 unsafe impl<T> TransmuteSafe for T where T: Sized + Copy {}
 
 
@@ -88,10 +115,10 @@ impl XZStreamHeader {
         let hdr: XZStreamHeader = TransmuteSafe::from_reader(reader)?;
 
         if hdr.header_magic != [0xFD, b'7', b'z', b'X', b'Z', 0x00] {
-            Err(XZError::InvalidHeaderMagic)
+            Err(XZErrorKind::InvalidHeaderMagic.into())
         } else if (hdr.flags.get() >> 8) != 0 || (hdr.flags.get() & 0xF0) != 0 {
             // TODO: More verification
-            Err(XZError::InvalidFlags)
+            Err(XZErrorKind::InvalidFlags.into())
         } else {
             Ok(hdr)
         }
@@ -197,7 +224,7 @@ fn parse_block_header<R: Read>(reader: &mut R, header_size: u16) -> XZResult<XZB
     let flags: XZBlockFlags = transmute_from_reader(reader)?;
 
     if !flags.is_ok() {
-        return Err(XZError::InvalidFlags);
+        return Err(XZErrorKind::InvalidFlags.into());
     }
 
     let mut buf = [0u8; 1024];
@@ -231,11 +258,11 @@ fn parse_block_header<R: Read>(reader: &mut R, header_size: u16) -> XZResult<XZB
     let rest_len = rest.len() as u64;
 
     if rest_len < 4 {
-        return Err(XZError::BadPadding);
+        return Err(XZErrorKind::BadPadding.into());
     } else if rest_len != 4 {
         for b in rest.take(rest_len - 4).bytes() {
             if b? != 0x00 {
-                return Err(XZError::BadPadding);
+                return Err(XZErrorKind::BadPadding.into());
             }
         }
     }
@@ -258,10 +285,18 @@ fn parse_xz_block<R: Read>(reader: &mut R, header_size: u16) -> XZResult<()> {
     Ok(())
 }
 
-fn parse_xz_stream<R: Read>(reader: &mut R) -> XZResult<()> {
-    let stream_header = XZStreamHeader::from_reader(reader)?;
-    while let HeaderKind::Block(header_size) = transmute_from_reader::<HeaderSize, _>(reader)?.disambiguate() {
-        parse_xz_block(reader, header_size)?;
+macro_rules! addc {
+    ($expr:expr, $reader:ident) => ($expr.map_err(|e| XZError::from(e).add_count($reader)))
+}
+
+pub fn parse_xz_stream<R: Read>(reader: &mut R) -> XZResult<()> {
+    let reader = &mut CountingReader::new(reader);
+    let stream_header = addc!(XZStreamHeader::from_reader(reader), reader)?;
+    while let HeaderKind::Block(header_size) =
+        addc!(transmute_from_reader::<HeaderSize, _>(reader), reader)?
+            .disambiguate()
+    {
+        addc!(parse_xz_block(reader, header_size), reader)?;
     }
     // TODO: parse index
     Ok(())

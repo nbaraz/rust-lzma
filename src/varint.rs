@@ -1,10 +1,8 @@
 use std::io::{self, Read};
-use ::{XZError, XZResult};
+use {XZErrorKind, XZResult};
 
 
-pub(crate) struct PartialVarInt(// crate) struct PartialVarInt(
-                                u64,
-                                u8);
+pub(crate) struct PartialVarInt(u64, u8);
 
 pub(crate) enum VarintResult {
     Full(u64),
@@ -55,7 +53,7 @@ pub(crate) fn from_reader<R: Read>(reader: &mut R) -> XZResult<u64> {
         partial = match partial.continue_parsing(b?) {
             VarintResult::Partial(p) => p,
             VarintResult::Error => {
-                return Err(XZError::Varint);
+                return Err(XZErrorKind::Varint.into());
             }
             VarintResult::Full(v) => {
                 return Ok(v);
