@@ -1,7 +1,7 @@
 
 macro_rules! impl_endian {
     ($orig:ident, $new:ident, $from:ident, $to:ident) => {
-        #[derive(Debug, Clone, Copy)]
+        #[derive(Clone, Copy)]
         #[repr(C)]
         pub(crate) struct $new($orig);
 
@@ -17,6 +17,13 @@ macro_rules! impl_endian {
             pub(crate) fn set(&mut self, val: $orig) {
                 self.0 = val.$to();
             }
+        }
+
+        impl ::std::fmt::Debug for $new {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter) -> Result<(), ::std::fmt::Error> {
+                write!(f, "{}({})", stringify!($new), self.get())
+            }
+
         }
     };
 }

@@ -132,7 +132,7 @@ impl XZStreamHeader {
             0x01 => CRC32,
             0x04 => CRC64,
             0x0A => SHA256,
-            _ => { return Option::None }
+            _ => return Option::None,
         })
     }
 }
@@ -159,7 +159,7 @@ impl CheckType {
     }
 }
 
-#[derive(Debug, Clone, Copy, )]
+#[derive(Clone, Copy)]
 #[repr(packed)]
 struct XZBlockFlags(u8);
 
@@ -181,6 +181,19 @@ impl XZBlockFlags {
     }
 }
 
+
+impl std::fmt::Debug for XZBlockFlags {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        write!(
+            f,
+            "XZBlockFlags{{ ok: {}, num_filters: {}, has_cs: {}, has_us: {} }}",
+            self.is_ok(),
+            self.num_filters(),
+            self.has_compressed_size(),
+            self.has_uncompressed_size()
+        )
+    }
+}
 
 #[derive(Debug)]
 struct XZBlockHeader {
