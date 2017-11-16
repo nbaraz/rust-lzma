@@ -169,7 +169,7 @@ impl XZBlockFlags {
     }
 
     fn num_filters(&self) -> u8 {
-        self.0 & 0x03
+        (self.0 & 0x03) + 1
     }
 
     fn has_compressed_size(&self) -> bool {
@@ -241,8 +241,9 @@ fn parse_block_header<R: Read>(reader: &mut R, header_size: u16) -> XZResult<XZB
     }
 
     let mut buf = [0u8; 1024];
-    reader.read_exact(&mut buf[..])?;
-    let rest: &mut &[u8] = &mut &buf[0..header_size as usize];
+    let header_data = &mut buf[0..header_size as usize - 2];
+    reader.read_exact(header_data)?;
+    let rest: &mut &[u8] = &mut &*header_data;
 
     let cs = if flags.has_compressed_size() {
         Some(varint::from_reader(rest)?)
